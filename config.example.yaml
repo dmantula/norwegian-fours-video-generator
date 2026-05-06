@@ -1,0 +1,43 @@
+# Example config for norwegian-fours-video-generator.
+# Copy to config.yaml and edit paths.
+
+intro:
+  title: "Norwegian Fours"
+  length: 10
+
+# Countdown overlay (rendered programmatically — no source file).
+countdown:
+  font_size_frac: 0.8
+  panel_alpha: 0.55
+  text_color: white
+  # font_path: /System/Library/Fonts/SFCompactRounded.ttf  # auto-picked by default
+
+# Picture-in-picture placement.
+pip:
+  margin: 0
+  h_padding_frac: 0.15
+
+transition: 2.0
+
+# Skeleton (defaults match the standard 4x4 protocol).
+intervals: 4
+warmup_length: 240
+work_length: 240
+recover_length: 180
+total_minutes: 40
+buffer_fadeout: 1.0
+
+# Source clips. Counts: work_clips == intervals, recover_clips == intervals + 1
+# (warmup, then `intervals - 1` between-set recoveries, then the final buffer).
+work_clips:
+  - { file: clips/work_1.mp4, offset: 0 }
+  - { file: clips/work_2.mp4, offset: 0 }
+  - { file: clips/work_3.mp4, offset: 0 }
+  - { file: clips/work_4.mp4, offset: 0 }
+
+recover_clips:
+  - { file: clips/warmup.mp4,    offset: 0 }
+  - { file: clips/recover_1.mp4, offset: 0 }
+  - { file: clips/recover_2.mp4, offset: 0 }
+  - { file: clips/recover_3.mp4, offset: 0 }
+  - { file: clips/buffer.mp4,    offset: 0 }

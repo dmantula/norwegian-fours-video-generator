@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local working config (use config.example.yaml as template)
+config.yaml
+
+# Generator outputs
+vidmerge_work/
+output*.mp4
+
+# Source video clips — never commit raw footage
+*.mp4
+*.mov
+*.webm
+*.mkv
+
+# macOS noise
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
