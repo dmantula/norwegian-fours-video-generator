@@ -26,6 +26,23 @@ DEFAULT_FONT = "/System/Library/Fonts/Helvetica.ttc"
 ENCODE_PRESET = "veryslow"
 ENCODE_CRF = "17"
 
+# 4xN skeleton constants (the "Norwegian Fours" protocol).
+INTRO_LENGTH = 10           # seconds of title card before warmup
+TRANSITION = 2.0            # crossfade duration (s) between every pair of parts
+WARMUP_LENGTH = 240         # warmup recover-clip duration
+WORK_LENGTH = 240           # each hard interval
+RECOVER_LENGTH = 180        # each between-sets recovery + buffer countdown
+BUFFER_FADEOUT = 1.0        # PiP alpha fade-out at end of buffer countdown
+
+# Picture-in-picture countdown styling.
+PIP_MARGIN = 0              # top-left flush
+PIP_H_PADDING_FRAC = 0.15   # horizontal padding inside the panel
+
+# Countdown look.
+COUNTDOWN_FONT_SIZE_FRAC = 0.8
+COUNTDOWN_PANEL_ALPHA = 0.55
+COUNTDOWN_TEXT_COLOR = "white"
+
 
 def apply_test_mode():
     """Shrink output to 480x270 (1/4 of FullHD per side) / 15fps / ultrafast
@@ -409,9 +426,6 @@ def build_fragments(cfg):
     Buffer length is whatever's needed to hit total_minutes.
     """
     intervals = int(cfg.get("intervals", 4))
-    warmup_length = int(cfg.get("warmup_length", 240))
-    work_length = int(cfg.get("work_length", 240))
-    recover_length = int(cfg.get("recover_length", 180))
     total_seconds = int(cfg.get("total_minutes", 40)) * 60
 
     work_clips = cfg.get("work_clips")
@@ -430,13 +444,13 @@ def build_fragments(cfg):
             f"(warmup + {intervals - 1} between-sets + buffer), got {len(recover_clips)}."
         )
 
-    used = warmup_length + intervals * work_length + (intervals - 1) * recover_length
+    used = WARMUP_LENGTH + intervals * WORK_LENGTH + (intervals - 1) * RECOVER_LENGTH
     buffer_length = total_seconds - used
-    if buffer_length < recover_length:
+    if buffer_length < RECOVER_LENGTH:
         sys.exit(
             f"ERROR: total_minutes={total_seconds // 60} too short for "
-            f"{intervals}x{work_length // 60}+{recover_length // 60} skeleton "
-            f"(need ≥ {(used + recover_length) // 60} min)."
+            f"{intervals}x{WORK_LENGTH // 60}+{RECOVER_LENGTH // 60} skeleton "
+            f"(need ≥ {(used + RECOVER_LENGTH) // 60} min)."
         )
 
     def slot(clip, length, **extra):
@@ -447,16 +461,16 @@ def build_fragments(cfg):
             **extra,
         }
 
-    frags = [slot(recover_clips[0], warmup_length)]
+    frags = [slot(recover_clips[0], WARMUP_LENGTH)]
     for i in range(intervals):
-        frags.append(slot(work_clips[i], work_length))
+        frags.append(slot(work_clips[i], WORK_LENGTH))
         if i < intervals - 1:
-            frags.append(slot(recover_clips[i + 1], recover_length))
+            frags.append(slot(recover_clips[i + 1], RECOVER_LENGTH))
     frags.append(slot(
         recover_clips[intervals],
         buffer_length,
-        countdown_length=recover_length,
-        countdown_fadeout=float(cfg.get("buffer_fadeout", 1.0)),
+        countdown_length=RECOVER_LENGTH,
+        countdown_fadeout=BUFFER_FADEOUT,
         countdown_align="start",
     ))
     return frags
@@ -521,20 +535,26 @@ def main():
     workdir = Path(args.workdir)
     workdir.mkdir(exist_ok=True)
 
-    intro_cfg = cfg.get("intro") or {}
-    transition = float(cfg.get("transition", 2.0))
-    font_path = cfg.get("font", DEFAULT_FONT)
-    pip = {
-        "margin": 0,
-        "h_padding_frac": 0.15,     # extra width on each side of the text
-        **(cfg.get("pip") or {}),
+    allowed_keys = {"intro", "intervals", "total_minutes", "work_clips", "recover_clips"}
+    unknown = set(cfg) - allowed_keys
+    if unknown:
+        sys.exit(f"ERROR: unknown config keys: {sorted(unknown)}. "
+                 f"Allowed: {sorted(allowed_keys)}")
+
+    intro_title = (cfg.get("intro") or {}).get("title", "")
+    transition = TRANSITION
+    font_path = DEFAULT_FONT
+    cd_cfg = {
+        "font_size_frac": COUNTDOWN_FONT_SIZE_FRAC,
+        "panel_alpha": COUNTDOWN_PANEL_ALPHA,
+        "text_color": COUNTDOWN_TEXT_COLOR,
     }
+    pip = {"margin": PIP_MARGIN}
     # PiP height = TARGET_H / 8. Width auto-fit to "M:SS" text width plus
     # horizontal padding, so the panel hugs the digits.
     pip_h = max(2, (TARGET_H // 8) & ~1)
-    cd_cfg = cfg.get("countdown") or {}
     text_w = measure_countdown_text_width(pip_h, cd_cfg)
-    pad_px = int(pip_h * float(pip["h_padding_frac"]))
+    pad_px = int(pip_h * PIP_H_PADDING_FRAC)
     pip_w = max(2, (text_w + 2 * pad_px) & ~1)
     pip["width"] = pip_w
     pip["height"] = pip_h
@@ -543,9 +563,8 @@ def main():
 
     # Generate the countdown clip just long enough for the longest visible
     # window we'll need. validate_fragments enforces this against cd_visible.
-    intro_len = int(intro_cfg.get("length", 10)) if intro_cfg else 0
     longest = max(
-        [intro_len] +
+        [INTRO_LENGTH] +
         [int(f.get("countdown_length") or f["length"]) for f in fragments]
     )
     countdown_workdir = Path(args.workdir)
@@ -563,17 +582,14 @@ def main():
 
     parts = []
 
-    has_intro = bool(intro_cfg)
-    if has_intro:
-        intro_out = workdir / "00_intro.mp4"
-        make_intro(
-            intro_cfg.get("title", ""),
-            intro_cfg.get("length", 10),
-            font_path, workdir, intro_out,
-            countdown, pip,
-            transition=transition,
-        )
-        parts.append(intro_out)
+    intro_out = workdir / "00_intro.mp4"
+    make_intro(
+        intro_title, INTRO_LENGTH,
+        font_path, workdir, intro_out,
+        countdown, pip,
+        transition=transition,
+    )
+    parts.append(intro_out)
 
     n = len(fragments)
     for i, frag in enumerate(fragments, 1):
@@ -587,7 +603,7 @@ def main():
             countdown_fadeout=frag.get("countdown_fadeout", 1.0),
             countdown_align=frag.get("countdown_align", "end"),
             transition=transition,
-            is_first=(not has_intro and i == 1),
+            is_first=False,
             is_last=(i == n),
         )
         parts.append(out)

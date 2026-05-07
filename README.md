@@ -52,19 +52,18 @@ encoding — use it to confirm the structure before kicking off a long render.
 
 ## Config
 
-See `config.yaml`. The pieces you swap per session are:
+See `config.example.yaml`. The whole config has just five keys:
 
-- `work_clips` — exactly `intervals` entries (each `{ file, offset }`)
+- `intro.title` — string drawn over the title card
+- `intervals` — number of hard sets (e.g. 4)
+- `total_minutes` — final video length; the buffer fills any remainder
+- `work_clips` — exactly `intervals` entries, each `{ file, offset }`
 - `recover_clips` — exactly `intervals + 1` entries
   (warmup, between-set recoveries, final buffer)
 
-The skeleton dials (`intervals`, `warmup_length`, `work_length`,
-`recover_length`, `total_minutes`) default to the standard 4×4 protocol.
-The buffer length is computed automatically.
-
-The countdown overlay is rendered programmatically (no source video needed).
-Tunable under the `countdown:` block: `font_size_frac`, `panel_alpha`,
-`text_color`, `font_path`.
+Everything else (segment lengths, transition duration, countdown styling, PiP
+placement, intro length) is fixed in `vidmerge.py` to match the standard 4×4
+protocol. Edit the constants at the top of the script if you need to tweak.
 
 ## Notes
 
